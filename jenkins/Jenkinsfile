@@ -7,35 +7,73 @@ pipeline {
     }
   }
 
-  options {
-    timeout(time: 15, unit: 'MINUTES')
-    disableConcurrentBuilds()
-  }
   environment {
-    branch = "${env.GIT_BRANCH}"
-    pom = readMavenPom file: 'pom.xml'
-    version = pom['version'].toUpperCase();
+    VERSION=readMavenPom().getVersion()
+    branch= "${env.GIT_BRANCH}"
   }
 
   stages {
+    stage ('rtconfig') {
+      steps {
+        rtServer (
+          id: 'localartifactory',
+          url: 'http://localhost:8081/artifactory',
+          credentialsId: 'artilocal'
+        )
+
+        rtMavenResolver (
+          id: 'resolver',
+          serverId: 'localartifactory',
+          releaseRepo: 'localmavenrepo',
+          snapshotRepo: 'localmavenrepo'
+        )
+
+        rtMavenDeployer (
+          id: 'deployer',
+          serverId: 'localartifactory',
+          releaseRepo: 'localmavenrepo',
+          snapshotRepo: 'localmavenrepo',
+          deployArtifacts: true
+        )
+      }
+    }
     stage('deploy') {
        when {
          expression { BRANCH_NAME ==~ /(master|develop)/ && env.VERSION ==~ /.*SNAPSHOT/}
-       }  
+       }
       steps {
-         sh 'echo hello on master and develop'
+        rtBuildInfo (captureEnv: true)
+        rtMavenRun (
+          tool: 'maven-docker',
+          pom: 'pom.xml',
+          goals: 'deploy -B -Dmaven.test.skip=true -Dmaven.repo.local=$HOME/.m2',
+          resolverId: 'resolver',
+          deployerId: 'deployer'
+        )
       }
     }
-       
-    stage('package') {
+
+    stage ('package') {
       when {
         not {
           expression { BRANCH_NAME ==~ /(master|develop)/ && env.VERSION ==~ /.*SNAPSHOT/ }
-        }       
-      }   
+        }
+      }
       steps {
-         sh 'echo it is executing rest of mandd'
+        rtBuildInfo (captureEnv: true)
+        rtMavenRun (
+          tool: 'maven-docker',
+          pom: 'pom.xml',
+          goals: 'package -B -Dmaven.test.skip=true -Dmaven.repo.local=$HOME/.m2',
+          resolverId: 'resolver',
+          deployerId: 'deployer'
+        )
       }
     }
-  }  
+    stage ('buildinfo') {
+      steps {
+        rtPublishBuildInfo (serverId: 'localartifactory')
+      }
+    }
+  }
 }
