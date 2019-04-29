@@ -4,6 +4,7 @@ pipeline {
     docker {
       image 'docker.apple.com/aos/ol-jdk11-custom-maven'
       label 'rosdaos'
+      args '-v $HOME/.m2:$HOME/.m2'
     }
   }
 
