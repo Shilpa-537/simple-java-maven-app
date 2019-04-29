@@ -2,9 +2,9 @@
 pipeline {
   agent {
     docker {
-      image 'docker.apple.com/aos/ol-jdk11-custom-maven'
+      image 'maven:3-alpine'
+      args '-v /root/.m2:/root/.m2'
       label 'rosdaos'
-      args '-v $HOME/.m2:$HOME/.m2'
     }
   }
 
